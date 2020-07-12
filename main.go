@@ -41,11 +41,28 @@ func main() {
 	log.Printf("Serving from: %s", serveDir)
 	http.HandleFunc("/blue/", blueHandler)
 	http.HandleFunc("/red/", redHandler)
+	http.HandleFunc("/test/", getThumb)
 	//http.Handler("/", http.FileServer(http.Dir(serveDir)))
 	err := http.ListenAndServe(listenString, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func getThumb(w http.ResponseWriter, r *http.Request) {
+	file, err := os.Open("test.jpg")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	img, err := jpeg.Decode(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Close()
+
+	res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
+	writeImage(w, &res)
 }
 
 func blueHandler(w http.ResponseWriter, r *http.Request) {
