@@ -49,7 +49,7 @@ html, body {
   visibility: hidden;
   opacity: 0;
   overflow: hiden;
-  transition: .64s ease-in-out;
+  transition: .5s ease-in-out;
 }
 .popup-inner {
   position: relative;
@@ -63,7 +63,7 @@ html, body {
   height: 80%;
   background-color: #fff;
   transform: rotate(32deg);
-  transition: .64s ease-in-out;
+  transition: .5s ease-in-out;
 }
 .popupphoto {
   display: flex;

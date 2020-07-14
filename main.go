@@ -42,7 +42,7 @@ func main() {
 	http.HandleFunc("/blue/", blueHandler)
 	http.HandleFunc("/red/", redHandler)
 	http.HandleFunc("/test/", getThumb)
-	//http.Handler("/", http.FileServer(http.Dir(serveDir)))
+	http.Handle("/", http.FileServer(http.Dir(serveDir)))
 	err := http.ListenAndServe(listenString, nil)
 	if err != nil {
 		log.Fatalln(err)
