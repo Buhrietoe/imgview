@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"html/template"
 	"image"
 	"image/color"
@@ -17,10 +18,27 @@ import (
 	"github.com/nfnt/resize"
 )
 
+type LoggerResponseWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (lw *LoggerResponseWriter) WriteHeader(code int) {
+	lw.code = code
+	lw.ResponseWriter.WriteHeader(code)
+}
+
+func StatusHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+
 // function logger logs all requests
 func logger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+		lrw := &LoggerResponseWriter{ResponseWriter: w, code: -1}
+		handler.ServeHTTP(lrw, r)
+		log.Printf("%d %s %s %s", lrw.code, r.Method, r.RemoteAddr, r.URL)
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -39,14 +57,18 @@ func main() {
 	log.Printf("Usage: %s [address:port] [directory]", filepath.Base(os.Args[0]))
 	log.Printf("Listening on: %s", listenString)
 	log.Printf("Serving from: %s", serveDir)
-	http.HandleFunc("/blue/", blueHandler)
-	http.HandleFunc("/red/", redHandler)
-	http.HandleFunc("/test/", getThumb)
-	http.Handle("/", http.FileServer(http.Dir(serveDir)))
-	err := http.ListenAndServe(listenString, nil)
-	if err != nil {
-		log.Fatalln(err)
-	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/status", StatusHandler)
+	mux.HandleFunc("/blue", blueHandler)
+	mux.HandleFunc("/red", redHandler)
+	mux.HandleFunc("/test", getThumb)
+	mux.Handle("/", http.FileServer(http.Dir(serveDir)))
+
+	WrappedMux := logger(mux)
+
+	log.Fatal(http.ListenAndServe(listenString, WrappedMux))
 }
 
 func getThumb(w http.ResponseWriter, r *http.Request) {
