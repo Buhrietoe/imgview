@@ -23,9 +23,9 @@ type LoggerResponseWriter struct {
 	code int
 }
 
-func (lw *LoggerResponseWriter) WriteHeader(code int) {
-	lw.code = code
-	lw.ResponseWriter.WriteHeader(code)
+func (lrw *LoggerResponseWriter) WriteHeader(code int) {
+	lrw.code = code
+	lrw.ResponseWriter.WriteHeader(code)
 }
 
 func StatusHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,6 @@ func logger(handler http.Handler) http.Handler {
 		lrw := &LoggerResponseWriter{ResponseWriter: w, code: -1}
 		handler.ServeHTTP(lrw, r)
 		log.Printf("%d %s %s %s", lrw.code, r.Method, r.RemoteAddr, r.URL)
-		handler.ServeHTTP(w, r)
 	})
 }
 
@@ -63,7 +62,8 @@ func main() {
 	mux.HandleFunc("/status", StatusHandler)
 	mux.HandleFunc("/blue", blueHandler)
 	mux.HandleFunc("/red", redHandler)
-	mux.HandleFunc("/test", getThumb)
+	mux.HandleFunc("/test", writeThumb)
+	mux.HandleFunc("/list", imageList)
 	mux.Handle("/", http.FileServer(http.Dir(serveDir)))
 
 	WrappedMux := logger(mux)
@@ -71,7 +71,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(listenString, WrappedMux))
 }
 
-func getThumb(w http.ResponseWriter, r *http.Request) {
+func imageList(w http.ResponseWriter, r *http.Request) {
+	//
+}
+
+func writeThumb(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Open("test.jpg")
 	if err != nil {
 		log.Fatal(err)
@@ -93,8 +97,8 @@ func blueHandler(w http.ResponseWriter, r *http.Request) {
 	draw.Draw(m, m.Bounds(), &image.Uniform{blue}, image.ZP, draw.Src)
 
 	var img image.Image = m
-	res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
-	writeImage(w, &res)
+	//res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
+	writeImage(w, &img)
 }
 
 func redHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +127,7 @@ func writeImageWithTemplate(w http.ResponseWriter, img *image.Image) {
 		log.Println("unable to parse image template.")
 	} else {
 		data := map[string]interface{}{"Image": str}
+		w.WriteHeader(http.StatusOK)
 		if err = tmpl.Execute(w, data); err != nil {
 			log.Println("unable to execute template.")
 		}
@@ -137,6 +142,7 @@ func writeImage(w http.ResponseWriter, img *image.Image) {
 		log.Println("unable to encode image.")
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Length", strconv.Itoa(len(buffer.Bytes())))
 	if _, err := w.Write(buffer.Bytes()); err != nil {
