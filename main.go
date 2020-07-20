@@ -92,13 +92,15 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 <title>{{.PageTitle}}</title>
 <style>
 	#imageBlock {
-		content: "";
-		display: table;
-		clear: both;
+		float: left;
 	}
 
 	#imageText {
 		text-align: center;
+	}
+
+	#image {
+		align-items: center;
 	}
 </style>
 </head>
