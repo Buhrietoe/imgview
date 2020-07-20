@@ -27,6 +27,16 @@ type LoggerResponseWriter struct {
 	code int
 }
 
+type Image struct {
+	Name string
+	URL  string
+}
+
+type ImagesPage struct {
+	PageTitle string
+	Images    []Image
+}
+
 func (lrw *LoggerResponseWriter) WriteHeader(code int) {
 	lrw.code = code
 	lrw.ResponseWriter.WriteHeader(code)
@@ -66,7 +76,7 @@ func main() {
 	mux.HandleFunc("/status", StatusHandler)
 	mux.HandleFunc("/blue", blueHandler)
 	mux.HandleFunc("/red", redHandler)
-	mux.HandleFunc("/thumb", writeThumb)
+	mux.HandleFunc("/thumb/", writeThumb)
 	mux.HandleFunc("/list", imageList)
 	mux.Handle("/", http.FileServer(http.Dir(serveDir)))
 
@@ -76,25 +86,63 @@ func main() {
 }
 
 func imageList(w http.ResponseWriter, r *http.Request) {
+	const tpl = `
+<html>
+<head>
+<title>{{.PageTitle}}</title>
+<style>
+	#imageBlock {
+		content: "";
+		display: table;
+		clear: both;
+	}
+
+	#imageText {
+		text-align: center;
+	}
+</style>
+</head>
+{{range .Images}}
+<div id="imageBlock">
+	<div id="imageText">{{.Name}}</div>
+	<div id="image"><img src="{{.URL}}" /></div>
+</div>
+{{end}}
+</html>`
+
 	files, err := ioutil.ReadDir(serveDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	images := []Image{}
 	for _, file := range files {
-		if isJPG(file) {
-			log.Printf("%s is a jpg", file.Name())
+		if file.IsDir() == false {
+			filename := path.Join(serveDir, file.Name())
+			if isJPG(filename) {
+				images = append(images, Image{Name: file.Name(), URL: path.Join("thumb", file.Name())})
+			}
 		}
 	}
-	w.WriteHeader(http.StatusOK)
-}
 
-func isJPG(file os.FileInfo) bool {
-	if file.IsDir() {
-		return false
+	page := ImagesPage{
+		PageTitle: "Security Events",
+		Images:    images,
+	}
+	tmpl, err := template.New("events").Parse(tpl)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	fileHandle, err := os.Open(path.Join(serveDir, file.Name()))
+	w.WriteHeader(http.StatusOK)
+	err = tmpl.Execute(w, page)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func isJPG(filename string) bool {
+	fileHandle, err := os.Open(filename)
 	defer fileHandle.Close()
 	if err != nil {
 		log.Fatal(err)
@@ -115,7 +163,8 @@ func isJPG(file os.FileInfo) bool {
 }
 
 func writeThumb(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open("test.jpg")
+	filePath := path.Join(serveDir, path.Base(r.RequestURI))
+	file, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
