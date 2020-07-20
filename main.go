@@ -9,14 +9,18 @@ import (
 	"image/color"
 	"image/draw"
 	"image/jpeg"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 
 	"github.com/nfnt/resize"
 )
+
+var serveDir string
 
 type LoggerResponseWriter struct {
 	http.ResponseWriter
@@ -44,7 +48,7 @@ func logger(handler http.Handler) http.Handler {
 
 func main() {
 	listenString := ":8080"
-	serveDir, _ := filepath.Abs(".")
+	serveDir, _ = filepath.Abs(".")
 
 	if len(os.Args) > 1 {
 		listenString = os.Args[1]
@@ -62,7 +66,7 @@ func main() {
 	mux.HandleFunc("/status", StatusHandler)
 	mux.HandleFunc("/blue", blueHandler)
 	mux.HandleFunc("/red", redHandler)
-	mux.HandleFunc("/test", writeThumb)
+	mux.HandleFunc("/thumb", writeThumb)
 	mux.HandleFunc("/list", imageList)
 	mux.Handle("/", http.FileServer(http.Dir(serveDir)))
 
@@ -72,7 +76,42 @@ func main() {
 }
 
 func imageList(w http.ResponseWriter, r *http.Request) {
-	//
+	files, err := ioutil.ReadDir(serveDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		if isJPG(file) {
+			log.Printf("%s is a jpg", file.Name())
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func isJPG(file os.FileInfo) bool {
+	if file.IsDir() {
+		return false
+	}
+
+	fileHandle, err := os.Open(path.Join(serveDir, file.Name()))
+	defer fileHandle.Close()
+	if err != nil {
+		log.Fatal(err)
+		return false
+	}
+
+	buff := make([]byte, 512)
+	if _, err = fileHandle.Read(buff); err != nil {
+		log.Fatal(err)
+		return false
+	}
+
+	if http.DetectContentType(buff) == "image/jpeg" {
+		return true
+	} else {
+		return false
+	}
 }
 
 func writeThumb(w http.ResponseWriter, r *http.Request) {
