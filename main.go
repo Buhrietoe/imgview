@@ -85,7 +85,7 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 
 	files, err := ioutil.ReadDir(serveDir)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	images := []Image{}
@@ -104,13 +104,13 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 	}
 	tmpl, err := template.New("events").Parse(tpl)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	w.WriteHeader(http.StatusOK)
 	err = tmpl.Execute(w, page)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 }
 
@@ -118,13 +118,13 @@ func isJPG(filename string) bool {
 	fileHandle, err := os.Open(filename)
 	defer fileHandle.Close()
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return false
 	}
 
 	buff := make([]byte, 512)
 	if _, err = fileHandle.Read(buff); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return false
 	}
 
@@ -139,12 +139,12 @@ func writeThumb(w http.ResponseWriter, r *http.Request) {
 	filePath := path.Join(serveDir, path.Base(r.RequestURI))
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	img, err := jpeg.Decode(file)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	file.Close()
 
@@ -180,7 +180,7 @@ func writeImageWithTemplate(w http.ResponseWriter, img *image.Image) {
 
 	buffer := new(bytes.Buffer)
 	if err := jpeg.Encode(buffer, *img, nil); err != nil {
-		log.Fatalln("unable to encode image.")
+		log.Println("unable to encode image.")
 	}
 
 	str := base64.StdEncoding.EncodeToString(buffer.Bytes())
