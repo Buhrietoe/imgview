@@ -56,35 +56,6 @@ func logger(handler http.Handler) http.Handler {
 	})
 }
 
-func main() {
-	listenString := ":8080"
-	serveDir, _ = filepath.Abs(".")
-
-	if len(os.Args) > 1 {
-		listenString = os.Args[1]
-	}
-	if len(os.Args) > 2 {
-		serveDir, _ = filepath.Abs(os.Args[2])
-	}
-
-	log.Printf("Usage: %s [address:port] [directory]", filepath.Base(os.Args[0]))
-	log.Printf("Listening on: %s", listenString)
-	log.Printf("Serving from: %s", serveDir)
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/status", StatusHandler)
-	mux.HandleFunc("/blue", blueHandler)
-	mux.HandleFunc("/red", redHandler)
-	mux.HandleFunc("/thumb/", writeThumb)
-	mux.HandleFunc("/list", imageList)
-	mux.Handle("/", http.FileServer(http.Dir(serveDir)))
-
-	WrappedMux := logger(mux)
-
-	log.Fatal(http.ListenAndServe(listenString, WrappedMux))
-}
-
 func imageList(w http.ResponseWriter, r *http.Request) {
 	const tpl = `
 <html>
@@ -177,7 +148,7 @@ func writeThumb(w http.ResponseWriter, r *http.Request) {
 	}
 	file.Close()
 
-	res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
+	res := resize.Thumbnail(300, 240, img, resize.Lanczos3)
 	writeImage(w, &res)
 }
 
@@ -238,4 +209,34 @@ func writeImage(w http.ResponseWriter, img *image.Image) {
 	if _, err := w.Write(buffer.Bytes()); err != nil {
 		log.Println("unable to write image.")
 	}
+}
+
+func main() {
+	listenString := ":8080"
+	serveDir, _ = filepath.Abs(".")
+
+	if len(os.Args) > 1 {
+		listenString = os.Args[1]
+	}
+	if len(os.Args) > 2 {
+		serveDir, _ = filepath.Abs(os.Args[2])
+	}
+
+	log.Printf("Usage: %s [address:port] [directory]", filepath.Base(os.Args[0]))
+	log.Printf("Listening on: %s", listenString)
+	log.Printf("Serving from: %s", serveDir)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/status", StatusHandler)
+	mux.HandleFunc("/blue", blueHandler)
+	mux.HandleFunc("/red", redHandler)
+	mux.HandleFunc("/thumb/", writeThumb)
+	mux.Handle("/images/", http.StripPrefix("/images", http.FileServer(http.Dir(serveDir))))
+	mux.HandleFunc("/list", imageList)
+	mux.Handle("/", http.FileServer(http.Dir(".")))
+
+	WrappedMux := logger(mux)
+
+	log.Fatal(http.ListenAndServe(listenString, WrappedMux))
 }
