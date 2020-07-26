@@ -158,8 +158,8 @@ func blueHandler(w http.ResponseWriter, r *http.Request) {
 	draw.Draw(m, m.Bounds(), &image.Uniform{blue}, image.ZP, draw.Src)
 
 	var img image.Image = m
-	//res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
-	writeImage(w, &img)
+	res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
+	writeImage(w, &res)
 }
 
 func redHandler(w http.ResponseWriter, r *http.Request) {
