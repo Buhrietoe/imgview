@@ -2,12 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"html/template"
-	"image"
-	"image/color"
-	"image/draw"
 	"image/jpeg"
 	"io/ioutil"
 	"log"
@@ -16,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/nfnt/resize"
 )
@@ -28,8 +25,9 @@ type LoggerResponseWriter struct {
 }
 
 type Image struct {
-	Name string
-	URL  string
+	Name  string
+	Thumb string
+	URL   string
 }
 
 type ImagesPage struct {
@@ -58,29 +56,68 @@ func logger(handler http.Handler) http.Handler {
 
 func imageList(w http.ResponseWriter, r *http.Request) {
 	const tpl = `
+<!DOCTYPE html>
 <html>
 <head>
-<title>{{.PageTitle}}</title>
-<style>
-	#imageBlock {
-		float: left;
-	}
-
-	#imageText {
-		text-align: center;
-	}
-
-	#image {
-		align-items: center;
-	}
-</style>
-</head>
+    <meta charset="UTF-8">
+    <title>{{.PageTitle}}</title>
+    <style>
+		* {
+			padding: 0;
+			margin: 0;
+			border: 0;
+		}
+		html, body {
+			font-family: arial;
+			font-size: 16px;
+			background: #fff;
+			color: #aaa;
+			text-align:center;
+		}
+		a {
+			text-decoration: none;
+		}
+		.container {
+			display: flex;
+			flex-flow: row wrap;
+		}
 {{range .Images}}
-<div id="imageBlock">
-	<div id="imageText">{{.Name}}</div>
-	<div id="image"><img src="{{.URL}}" /></div>
-</div>
+		.popup-{{.Name}} {
+			background-image: url("{{.URL}}");
+			background-color: #000000;
+			max-width: 100%;
+			max-height: 100%;
+			background-position: center;
+			background-repeat: no-repeat;
+			background-size: contain;
+			position: fixed;
+			z-index: 999;
+			display: none;
+		}
+		.popup-{{.Name}}:target {
+			outline: none;
+			width: 100%;
+			height: 100%;
+			display: block !important;
+		}
 {{end}}
+	</style>
+</head>
+<body>
+{{range .Images}}
+    <a href="#_">
+        <div class="popup-{{.Name}}" id="{{.Name}}"></div>
+    </a>
+{{end}}
+    <div class="container">
+{{range .Images}}
+        <a href="#{{.Name}}">
+            <div class="thumbtext">{{.Name}}</div>
+            <img src="{{.Thumb}}" />
+        </a>
+{{end}}
+    </div>
+</body>
 </html>`
 
 	files, err := ioutil.ReadDir(serveDir)
@@ -93,7 +130,9 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 		if file.IsDir() == false {
 			filename := path.Join(serveDir, file.Name())
 			if isJPG(filename) {
-				images = append(images, Image{Name: file.Name(), URL: path.Join("thumb", file.Name())})
+				// Base filename with no extension
+				baseName := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
+				images = append(images, Image{Name: baseName, Thumb: path.Join("thumb", file.Name()), URL: path.Join("images", file.Name())})
 			}
 		}
 	}
@@ -149,57 +188,8 @@ func writeThumb(w http.ResponseWriter, r *http.Request) {
 	file.Close()
 
 	res := resize.Thumbnail(300, 240, img, resize.Lanczos3)
-	writeImage(w, &res)
-}
-
-func blueHandler(w http.ResponseWriter, r *http.Request) {
-	m := image.NewRGBA(image.Rect(0, 0, 240, 240))
-	blue := color.RGBA{0, 0, 255, 255}
-	draw.Draw(m, m.Bounds(), &image.Uniform{blue}, image.ZP, draw.Src)
-
-	var img image.Image = m
-	res := resize.Thumbnail(200, 160, img, resize.Lanczos3)
-	writeImage(w, &res)
-}
-
-func redHandler(w http.ResponseWriter, r *http.Request) {
-	m := image.NewRGBA(image.Rect(0, 0, 240, 240))
-	blue := color.RGBA{255, 0, 0, 255}
-	draw.Draw(m, m.Bounds(), &image.Uniform{blue}, image.ZP, draw.Src)
-
-	var img image.Image = m
-	writeImageWithTemplate(w, &img)
-}
-
-var ImageTemplate string = `<!DOCTYPE html>
-<html lang="en"><head></head>
-<body><img src="data:image/jpg;base64,{{.Image}}"></body>`
-
-// Writeimagewithtemplate encodes an image 'img' in jpeg format and writes it into ResponseWriter using a template.
-func writeImageWithTemplate(w http.ResponseWriter, img *image.Image) {
-
 	buffer := new(bytes.Buffer)
-	if err := jpeg.Encode(buffer, *img, nil); err != nil {
-		log.Println("unable to encode image.")
-	}
-
-	str := base64.StdEncoding.EncodeToString(buffer.Bytes())
-	if tmpl, err := template.New("image").Parse(ImageTemplate); err != nil {
-		log.Println("unable to parse image template.")
-	} else {
-		data := map[string]interface{}{"Image": str}
-		w.WriteHeader(http.StatusOK)
-		if err = tmpl.Execute(w, data); err != nil {
-			log.Println("unable to execute template.")
-		}
-	}
-}
-
-// writeImage encodes an image 'img' in jpeg format and writes it into ResponseWriter.
-func writeImage(w http.ResponseWriter, img *image.Image) {
-
-	buffer := new(bytes.Buffer)
-	if err := jpeg.Encode(buffer, *img, nil); err != nil {
+	if err := jpeg.Encode(buffer, res, nil); err != nil {
 		log.Println("unable to encode image.")
 	}
 
@@ -229,12 +219,9 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/status", StatusHandler)
-	mux.HandleFunc("/blue", blueHandler)
-	mux.HandleFunc("/red", redHandler)
 	mux.HandleFunc("/thumb/", writeThumb)
 	mux.Handle("/images/", http.StripPrefix("/images", http.FileServer(http.Dir(serveDir))))
-	mux.HandleFunc("/list", imageList)
-	mux.Handle("/", http.FileServer(http.Dir(".")))
+	mux.HandleFunc("/", imageList)
 
 	WrappedMux := logger(mux)
 
