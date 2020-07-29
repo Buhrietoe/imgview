@@ -138,7 +138,7 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ImagesPage{
-		PageTitle: "Security Events",
+		PageTitle: "Images",
 		Images:    images,
 	}
 	tmpl, err := template.New("events").Parse(tpl)
