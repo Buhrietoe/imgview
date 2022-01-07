@@ -83,37 +83,12 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 			display: flex;
 			flex-flow: row wrap;
 		}
-{{range .Images}}
-		.popup-{{.Name}} {
-			background-image: url("{{.URL}}");
-			background-color: #000000;
-			max-width: 100%;
-			max-height: 100%;
-			background-position: center;
-			background-repeat: no-repeat;
-			background-size: contain;
-			position: fixed;
-			z-index: 999;
-			display: none;
-		}
-		.popup-{{.Name}}:target {
-			outline: none;
-			width: 100%;
-			height: 100%;
-			display: block !important;
-		}
-{{end}}
 	</style>
 </head>
 <body>
-{{range .Images}}
-    <a href="#_">
-        <div class="popup-{{.Name}}" id="{{.Name}}"></div>
-    </a>
-{{end}}
     <div class="container">
 {{range .Images}}
-        <a href="#{{.Name}}">
+        <a href="{{.URL}}">
             <div class="thumbtext">{{.Name}}</div>
             <img src="{{.Thumb}}" />
         </a>
