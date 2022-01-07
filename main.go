@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"html/template"
 	"image/jpeg"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -127,7 +129,7 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 
 	images := []Image{}
 	for _, file := range files {
-		if file.IsDir() == false {
+		if !file.IsDir() {
 			filename := path.Join(serveDir, file.Name())
 			if isJPG(filename) {
 				// Base filename with no extension
@@ -155,11 +157,11 @@ func imageList(w http.ResponseWriter, r *http.Request) {
 
 func isJPG(filename string) bool {
 	fileHandle, err := os.Open(filename)
-	defer fileHandle.Close()
 	if err != nil {
 		log.Println(err)
 		return false
 	}
+	defer fileHandle.Close()
 
 	buff := make([]byte, 512)
 	if _, err = fileHandle.Read(buff); err != nil {
@@ -179,19 +181,61 @@ func writeThumb(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Println(err)
+		return
 	}
+	defer file.Close()
 
-	img, err := jpeg.Decode(file)
+	h256 := sha256.New()
+	if _, err := io.Copy(h256, file); err != nil {
+		log.Println(err)
+		return
+	}
+	h256Sum := fmt.Sprintf("%x", h256.Sum(nil))
+
+	_, err = file.Seek(0, 0)
 	if err != nil {
 		log.Println(err)
+		return
 	}
-	file.Close()
 
-	res := resize.Thumbnail(300, 240, img, resize.Lanczos3)
-	buffer := new(bytes.Buffer)
-	if err := jpeg.Encode(buffer, res, nil); err != nil {
-		log.Println("unable to encode image.")
+	cacheDir := path.Join(serveDir, ".imgview")
+	_, err = os.Stat(cacheDir)
+	if os.IsNotExist(err) {
+		_ = os.Mkdir(cacheDir, 0755)
 	}
+	cacheFile := path.Join(cacheDir, h256Sum)
+	buffer := new(bytes.Buffer)
+	hFile, err := os.Open(cacheFile)
+	if err != nil {
+		log.Printf("No cache for %s\n", cacheFile)
+
+		img, err := jpeg.Decode(file)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		res := resize.Thumbnail(300, 240, img, resize.Lanczos3)
+		if err := jpeg.Encode(buffer, res, nil); err != nil {
+			log.Println("unable to encode image.")
+			return
+		}
+
+		newCache, err := os.Create(cacheFile)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		defer newCache.Close()
+		newCache.Write(buffer.Bytes())
+	} else {
+		_, err := io.Copy(buffer, hFile)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+	defer hFile.Close()
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "image/jpeg")
